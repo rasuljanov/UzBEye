@@ -1,0 +1,15 @@
+detector: IDEA-Research/grounding-dino-tiny
+detector_revision: a2bb814dd30d776dcf7e30523b00659f4f141c71
+translator: facebook/nllb-200-distilled-600M
+translator_revision: f8d333a098d19b4fd9a8b18f94170487ad3f821d
+translation_backend: nllb
+image_size: 512
+sequence_length: 96
+seed: 42
+precision: fp16
+batch_size: 1
+accumulate: 8
+epochs: 5
+patience: 2
+learning_rate: 0.00005
+gradient_checkpointing: true

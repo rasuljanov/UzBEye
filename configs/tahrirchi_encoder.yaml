@@ -1,0 +1,4 @@
+base: baseline.yaml
+approach: C
+encoder: tahrirchi/tahrirchi-bert-base
+encoder_revision: e9961825524fe3dfc2b7e73612a4f6c3b1cf0251
