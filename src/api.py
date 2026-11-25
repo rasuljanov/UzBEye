@@ -9,12 +9,15 @@ from typing import Annotated, Literal
 
 import torch
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from huggingface_hub import hf_hub_url
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from src.common import config, read_json
 from src.inference.instances import MAX_INSTANCES, multiple_instances
 from src.inference.translation_backend import InvalidTranslation, backend
+from src.models.assets import source
 from src.models.grounding_dino import Grounder, load_delta
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +40,26 @@ def ready(approach):
 def models():
     return {"device": torch.cuda.get_device_name() if DEVICE.type == "cuda" else "CPU",
             "models": {tag: ready(tag) for tag in "ABCD"}}
+
+
+@app.api_route("/api/models/{approach}/download", methods=["GET", "HEAD"])
+def download_weights(approach: ModelID):
+    if approach in ("B", "C"):
+        checkpoint = CHECKPOINTS / approach / "best.pt"
+        if not checkpoint.is_file():
+            raise HTTPException(404, f"Model {approach} checkpoint is unavailable.")
+        return FileResponse(checkpoint, filename=f"uzbeye-{approach.lower()}-adapter.pt",
+                            media_type="application/octet-stream")
+
+    settings = config(ROOT / "configs" / "baseline.yaml")
+    repo, revision = settings["detector"], settings["detector_revision"]
+    local = Path(source(repo, revision))
+    for filename in ("model.safetensors", "pytorch_model.bin"):
+        weights = local / filename
+        if weights.is_file():
+            return FileResponse(weights, filename=f"grounding-dino-tiny{weights.suffix}",
+                                media_type="application/octet-stream")
+    return RedirectResponse(hf_hub_url(repo, "model.safetensors", revision=revision))
 
 
 @lru_cache(maxsize=3)

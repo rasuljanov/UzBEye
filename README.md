@@ -4,15 +4,21 @@
 
 UzBEye takes an image and a short Uzbek description such as *chapdagi ko‘k soyabon* and draws a box around the object it refers to. The local Vue demo lets you upload an image, switch between four models, and inspect ranked box candidates.
 
+## Platform
+
+![UzBEye demo showing two separate prediction boxes for the Uzbek prompt ikkita odam](docs/platform-demo.png)
+
+Model C grounds *ikkita odam* (“two people”) and displays a box for each person in the Portrait sample.
+
 ## Motivation
 
 A pretrained detector can ground English descriptions through translation at inference time. That adds latency to each new query, and a translation error can change which object the user refers to. UzBEye studies how much accuracy is retained when the system learns to handle Uzbek prompts directly.
 
 | Model | Approach |
 |---|---|
-| A · Translate-Test | Translate Uzbek to English with NLLB, then run pretrained Grounding DINO-Tiny. |
+| A · Translate-at-Inference | Translate Uzbek to English with NLLB, then run pretrained Grounding DINO-Tiny. |
 | B · Translate-Train | Keep the original Grounding DINO text encoder and fine-tune on Uzbek RefCOCOg prompts. |
-| C · TahrirchiBERT | Replace the text encoder with TahrirchiBERT and fine-tune on the same Uzbek prompts as B. |
+| C · Uzb-lang encoder | Replace the text encoder with TahrirchiBERT and fine-tune on the same Uzbek prompts as B. |
 | D · Zero-Shot Uzbek | Send Uzbek prompts directly to pretrained Grounding DINO-Tiny. |
 
 ## Data and results
@@ -23,7 +29,7 @@ All rows below use the same **255 corrected validation prompts** on a Quadro RTX
 
 | Model and training data | Top-1 accuracy | Top-5 recall | Median latency |
 |---|---:|---:|---:|
-| A · Translate-Test, uncached | **49.4%** (126/255) | 82.0% | 450 ms |
+| A · Translate-at-Inference, uncached | **49.4%** (126/255) | 82.0% | 450 ms |
 | B · Original translations | 38.8% (99/255) | 85.1% | 208 ms |
 | B · Corrected translations | 42.7% (109/255) | 81.6% | 207 ms |
 | C · Original translations | 42.4% (108/255) | 76.9% | 207 ms |
@@ -76,6 +82,8 @@ npm --prefix frontend run build
 ```
 
 Try *ikki odam*, *barcha odamlar*, or *odamlar* for multiple matches. The demo filters overlapping duplicate boxes and displays up to ten matches together. A requested count caps the number of displayed boxes. Single-object expressions retain the ranked view.
+
+Use the download icon in a model row to save its weights. A and D share the Grounding DINO-Tiny file. B and C download the adapter checkpoints selected by the backend. The adapter files require the pretrained detector. C also uses TahrirchiBERT, and A uses NLLB at inference time.
 
 ## Reproduce or extend
 

@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import ReportsPanel from './ReportsPanel.vue'
 
 const approaches = [
-  { id: 'A', name: 'Translate-Test', description: 'Translates the prompt to English.' },
+  { id: 'A', name: 'Translate-at-Inference', description: 'Translates the prompt to English.' },
   { id: 'B', name: 'Translate-Train', description: 'Fine-tuned on Uzbek prompts.' },
-  { id: 'C', name: 'TahrirchiBERT', description: 'Uses a fine-tuned Uzbek text encoder.' },
+  { id: 'C', name: 'Uzb-lang encoder', description: 'Uses a fine-tuned Uzbek text encoder.' },
   { id: 'D', name: 'Zero-Shot Uzbek', description: 'Runs the pretrained model directly on Uzbek.' },
 ]
 const samples = [
@@ -21,7 +22,6 @@ const prompt = ref(samples[0].prompt)
 const uploaded = ref(null)
 const objectUrl = ref('')
 const filePicker = ref(null)
-const device = ref('')
 const availability = ref({})
 const connectionError = ref(false)
 const busy = ref(false)
@@ -111,7 +111,6 @@ async function connect() {
     const response = await fetch('/api/models')
     if (!response.ok) throw new Error()
     const data = await response.json()
-    device.value = data.device
     availability.value = data.models
     if (!availability.value[selection.value]) selection.value = 'D'
   } catch {
@@ -159,11 +158,7 @@ onUnmounted(releaseUpload)
         <span class="brand-mark" aria-hidden="true"></span>
         <h1>UzBEye</h1>
       </div>
-      <div class="device" aria-live="polite">
-        <span class="device-indicator" :class="{ online: device }" aria-hidden="true"></span>
-        {{ device || (connectionError ? 'Server offline' : 'Connecting') }}
-        <button v-if="connectionError" type="button" class="retry" @click="connect">Retry</button>
-      </div>
+      <ReportsPanel />
     </div>
   </header>
 
@@ -195,14 +190,26 @@ onUnmounted(releaseUpload)
                     placeholder="Masalan, chapdagi oq soyabon" @input="clearResult"></textarea>
 
           <span id="models-label" class="model-label">Model</span>
-          <div class="models" role="radiogroup" aria-labelledby="models-label" aria-describedby="model-description">
-            <label v-for="model in approaches" :key="model.id" class="model" :class="{ active: selection === model.id }">
-              <input v-model="selection" type="radio" name="approach" :value="model.id"
-                     :disabled="availability[model.id] === false" @change="clearResult">
-              <span class="model-id">{{ model.id }}</span>
-              <span class="model-name">{{ model.name }}</span>
-              <span v-if="availability[model.id] === false" class="visually-hidden">Checkpoint needed</span>
-            </label>
+          <div class="models" role="group" aria-labelledby="models-label" aria-describedby="model-description">
+            <div v-for="model in approaches" :key="model.id" class="model" :class="{ active: selection === model.id }">
+              <label class="model-option">
+                <input v-model="selection" type="radio" name="approach" :value="model.id"
+                       :disabled="availability[model.id] === false" @change="clearResult">
+                <span class="model-id">{{ model.id }}</span>
+                <span class="model-name">{{ model.name }}</span>
+                <span v-if="availability[model.id] === false" class="visually-hidden">Checkpoint needed</span>
+              </label>
+              <a class="model-download" download
+                 :href="availability[model.id] ? '/api/models/' + model.id + '/download' : undefined"
+                 :aria-label="'Download weights for ' + model.name"
+                 :title="'Download weights for ' + model.name"
+                 :aria-disabled="!availability[model.id]">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3v12m-4-4 4 4 4-4M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+                </svg>
+              </a>
+            </div>
           </div>
           <p id="model-description" class="model-description">{{ selectedModel.description }}</p>
         </fieldset>
@@ -210,6 +217,10 @@ onUnmounted(releaseUpload)
           <span v-if="busy" class="spinner" aria-hidden="true"></span>
           {{ busy ? 'Grounding…' : 'Run grounding' }}
         </button>
+        <p v-if="connectionError" class="connection-status" role="status">
+          Server offline
+          <button type="button" class="retry" @click="connect">Retry</button>
+        </p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </form>
 
