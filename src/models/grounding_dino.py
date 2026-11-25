@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torchvision.ops import nms
 from transformers import AutoImageProcessor, AutoTokenizer, GroundingDinoForObjectDetection
 
 from src.data.preprocessing import corners, encode
@@ -45,11 +46,22 @@ class Grounder(nn.Module):
         return logits, boxes
 
     @torch.inference_mode()
-    def predict(self, image, phrase):
+    def predict(self, image, phrase, *, instance_limit=None):
         logits, boxes = self(image, phrase)
         scores = logits.sigmoid().mean(-1)
-        top = scores.topk(min(5, len(scores))).indices
-        return corners(boxes[top]).clamp(0, 1).cpu().tolist(), scores[top].cpu().tolist()
+        if instance_limit is None:
+            top = scores.topk(min(5, len(scores))).indices
+            return corners(boxes[top]).clamp(0, 1).cpu().tolist(), scores[top].cpu().tolist()
+        return distinct_instances(corners(boxes).clamp(0, 1), scores, instance_limit)
+
+
+def distinct_instances(boxes, scores, limit):
+    # Grounding scores vary with the text encoder, so also compare with the best candidate.
+    cutoff = scores.max().mul(.55).clamp(min=.10)
+    valid = ((boxes[:, 2:] - boxes[:, :2]) > 0).all(dim=1) & (scores >= cutoff)
+    boxes, scores = boxes[valid], scores[valid]
+    top = nms(boxes, scores, iou_threshold=.45)[:limit]
+    return boxes[top].cpu().tolist(), scores[top].cpu().tolist()
 
 
 def load_delta(model, path, approach):

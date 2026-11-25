@@ -8,9 +8,12 @@ const approaches = [
   { id: 'D', name: 'Zero-Shot Uzbek', description: 'Runs the pretrained model directly on Uzbek.' },
 ]
 const samples = [
-  { name: 'Giraffes', file: '/samples/giraffes.jpg', prompt: "Yuzi ko'rinib turgan jirafa." },
-  { name: 'Horse', file: '/samples/horse.jpg', prompt: "Otga qo'lini tekkizib turgan ayol." },
-  { name: 'Sandwich', file: '/samples/sandwich.jpg', prompt: 'Tepadagi sendvich.' },
+  { name: 'Television', file: '/samples/television.png', prompt: 'Aravacha ustidagi televizor.' },
+  { name: 'Football', file: '/samples/football.jpg', prompt: "Sariq libosdagi futbolchi." },
+  { name: 'Tiger', file: '/samples/tiger.jpg', prompt: "Qayiqdagi og'zini ochgan yo'lbars." },
+  { name: 'Pizza', file: '/samples/pizza.jpg', prompt: "Ochiq qutidagi pitsa." },
+  { name: 'Pottery', file: '/samples/pottery.jpg', prompt: "Ko'za ustiga naqsh chizayotgan usta." },
+  { name: 'Portrait', file: '/samples/portrait.png', prompt: "O'ng tomondagi qizil kiyimli ayol." },
 ]
 const selection = ref('C')
 const sample = ref(samples[0])
@@ -35,11 +38,15 @@ const frameStyle = computed(() => ({ '--ratio': shape.value ? shape.value.width 
 const selectedModel = computed(() => approaches.find(model => model.id === selection.value))
 const ready = computed(() => shape.value && availability.value[selection.value] && prompt.value.trim())
 const score = computed(() => activePrediction.value ? (activePrediction.value.score * 100).toFixed(1) + '%' : '')
-const boxStyle = computed(() => {
-  if (!activePrediction.value) return {}
-  const [x1, y1, x2, y2] = activePrediction.value.box
-  return { left: x1 * 100 + '%', top: y1 * 100 + '%', width: (x2 - x1) * 100 + '%', height: (y2 - y1) * 100 + '%' }
+const visiblePredictions = computed(() => {
+  if (selectedRank.value === null) return result.value?.predictions ?? []
+  return activePrediction.value ? [activePrediction.value] : []
 })
+
+function boxStyle(prediction) {
+  const [x1, y1, x2, y2] = prediction.box
+  return { left: x1 * 100 + '%', top: y1 * 100 + '%', width: (x2 - x1) * 100 + '%', height: (y2 - y1) * 100 + '%' }
+}
 
 function clearResult() {
   result.value = null
@@ -133,6 +140,7 @@ async function ground() {
       throw new Error(typeof data.detail === 'string' ? data.detail : 'Check the image and prompt, then try again.')
     }
     result.value = data
+    selectedRank.value = data.mode === 'instances' ? null : 0
   } catch (err) {
     error.value = err instanceof SyntaxError ? 'The local server could not complete inference. Check its terminal.' : err.message
   } finally {
@@ -220,8 +228,9 @@ onUnmounted(releaseUpload)
           <div class="frame" :style="frameStyle">
             <img :key="imageUrl" :src="imageUrl" :alt="filename" draggable="false"
                  @load="imageLoaded" @error="imageFailed">
-            <div v-if="activePrediction" class="box" :style="boxStyle" aria-hidden="true">
-              <span>{{ score }}</span>
+            <div v-for="(prediction, index) in visiblePredictions" :key="selectedRank ?? index" class="box"
+                 :style="boxStyle(prediction)" aria-hidden="true">
+              <span>{{ (prediction.score * 100).toFixed(1) }}%</span>
             </div>
           </div>
           <span v-if="dragging" class="drop-message">Drop an image to upload</span>
@@ -229,19 +238,25 @@ onUnmounted(releaseUpload)
 
         <div v-if="result" class="output-footer" aria-live="polite">
           <div class="result-metadata">
-            <span><strong>{{ score }}</strong> box score</span>
+            <span v-if="result.mode === 'instances'">
+              <strong>{{ result.predictions.length }}</strong> {{ result.predictions.length === 1 ? 'match' : 'matches' }}<template
+                v-if="result.requested_count"> · {{ result.requested_count }} requested</template>
+            </span>
+            <span v-else><strong>{{ score }}</strong> box score</span>
             <span><strong>{{ Math.round(result.duration_ms) }} ms</strong> inference</span>
           </div>
-          <div class="ranks" aria-label="Ranked boxes">
+          <div v-if="result.predictions.length" class="ranks" aria-label="Ranked boxes">
             <span>Box</span>
+            <button v-if="result.mode === 'instances'" type="button" :aria-pressed="selectedRank === null"
+                    @click="selectedRank = null">All</button>
             <button v-for="(_, index) in result.predictions" :key="index" type="button"
                     :aria-label="'Show box ranked ' + (index + 1)" :aria-pressed="selectedRank === index"
                     @click="selectedRank = index">{{ index + 1 }}</button>
           </div>
-          <p v-if="result.approach === 'A'" class="translation"><strong>English translation</strong> {{ result.grounded_prompt }}</p>
+          <p v-if="result.approach === 'A'" class="translation"><strong>{{ result.mode === 'instances' ? 'English detection prompt' : 'English translation' }}</strong> {{ result.grounded_prompt }}</p>
         </div>
         <div v-else class="output-footer empty" aria-live="polite">
-          <p>{{ busy ? 'The first run can take longer while the model loads.' : 'Run grounding to see the five highest-ranked boxes.' }}</p>
+          <p>{{ busy ? 'The first run can take longer while the model loads.' : 'Run grounding to see matching boxes.' }}</p>
         </div>
       </section>
     </div>

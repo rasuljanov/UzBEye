@@ -17,3 +17,31 @@ def test_detector_output_dimensions():
     assert out.pred_boxes.shape == (1,8,4)
     assert torch.isfinite(out.logits[:,:,:4]).all()
     assert torch.all((0 <= out.pred_boxes) & (out.pred_boxes <= 1))
+
+def test_counted_prompts_preserve_the_target_and_ranked_fallback():
+    from src.inference.instances import multiple_instances
+
+    assert multiple_instances("Ikkita qizil soyabon.") == ("qizil soyabon", 2)
+    assert multiple_instances("2 ta odam") == ("odam", 2)
+    assert multiple_instances("To‘rtta mashina") == ("mashina", 4)
+    assert multiple_instances("ikki odam yonidagi televizor") is None
+    assert multiple_instances("O'ng tomondagi qizil kiyimli ayol.") is None
+    assert multiple_instances("both people") == ("person", 2)
+    assert multiple_instances("barcha odamlar") == ("odam", None)
+    assert multiple_instances("odamlar") == ("odam", None)
+
+
+def test_instance_filter_removes_duplicates_before_applying_count():
+    from src.models.grounding_dino import distinct_instances
+
+    proposals = torch.tensor([
+        [.0, .0, .4, .9],
+        [.02, .02, .39, .88],
+        [.6, .0, 1., .9],
+        [.4, .05, .5, .2],
+    ])
+    scores = torch.tensor([.9, .85, .8, .2])
+    boxes, confidences = distinct_instances(proposals, scores, limit=2)
+    assert boxes == proposals[[0, 2]].tolist()
+    assert confidences == scores[[0, 2]].tolist()
+    assert distinct_instances(proposals, scores * .01, limit=2) == ([], [])

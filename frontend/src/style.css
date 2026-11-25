@@ -148,7 +148,7 @@ textarea::placeholder { color: var(--muted); }
 .output-footer p { margin: 0; line-height: 1.35; }
 .result-metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .result-metadata strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.ranks { display: flex; align-items: center; gap: 5px; }
+.ranks { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .ranks span { margin-right: 3px; }
 .ranks button { min-width: 32px; height: 32px; padding: 0 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .ranks button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

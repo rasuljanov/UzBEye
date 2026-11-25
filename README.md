@@ -2,7 +2,7 @@
 
 <img src="frontend/public/uzbeye-mark.svg" alt="UzBEye logo" width="80">
 
-UzBEye takes an image and a short Uzbek description such as *chapdagi ko‘k soyabon* and draws a box around the object it refers to. The local Vue demo lets you upload an image, switch between four models, and inspect their five highest-ranked boxes.
+UzBEye takes an image and a short Uzbek description such as *chapdagi ko‘k soyabon* and draws a box around the object it refers to. The local Vue demo lets you upload an image, switch between four models, and inspect ranked box candidates.
 
 ## Motivation
 
@@ -32,11 +32,22 @@ All rows below use the same **255 corrected validation prompts** on a Quadro RTX
 
 See the [benchmark data and evaluation protocol](docs/validation-results.json). The validation split was used for checkpoint selection. The 128 selected official test expressions still have English annotations and need Uzbek review before held-out evaluation.
 
+### Reading the results
+
+![Scatter plot of top-1 accuracy and median latency. A reaches 49.4% at 450 ms. Corrected B and C reach 42.7% and 41.6% at roughly 205 ms.](docs/figures/accuracy-latency.png)
+
+**Accuracy and latency.** A returned 17 more correct first-ranked boxes than corrected B across 255 prompts. B’s median latency was 207 ms compared with 450 ms for A, which includes uncached translation.
+
+![Paired plots showing top-1 and top-5 scores for B and C trained on the original and corrected translations.](docs/figures/translation-repair.png)
+
+**Translation repairs.** B gained 10 first-ranked matches and lost nine top-five matches. C lost two first-ranked matches and gained 15 top-five matches. The training prompts and the validation prompts used for checkpoint selection both changed between the two versions. The [box rank breakdown](docs/figures/box-rank-breakdown.png) shows that corrected C placed a matching box at ranks 2–5 on 105 prompts where its first box missed.
+
+Regenerate the figures with `.\.venv\Scripts\python.exe -m scripts.plot_validation_results`.
+
 ## Why the results may differ
 
 - **A can reuse pretrained English grounding.** When NLLB preserves the object, attributes, and spatial cues, Grounding DINO already has an alignment between those English features and image regions. Uncached translation accounts for much of A’s extra latency.
 - **B starts with its pretrained text encoder and projection.** C starts with an Uzbek-language encoder and a fresh text projection. Its text features need to be aligned with the detector using the same 4,085 training expressions. This is a plausible difference in learning difficulty. B’s three-prediction lead over C on the corrected runs is small.
-- **Translation corrections affected ranking and candidate coverage differently.** B gained 10 first-ranked matches after retraining. C found a matching box in its top five on 15 more prompts, while it lost two first-ranked matches. The training captions and checkpoint-selection prompts were both corrected, so the comparison describes the two complete training runs.
 
 ## Run locally
 
@@ -64,6 +75,8 @@ npm --prefix frontend ci
 npm --prefix frontend run build
 ```
 
+Try *ikki odam*, *barcha odamlar*, or *odamlar* for multiple matches. The demo filters overlapping duplicate boxes and displays up to ten matches together. A requested count caps the number of displayed boxes. Single-object expressions retain the ranked view.
+
 ## Reproduce or extend
 
 The commands below use the local corrected manifest. A fresh clone contains source and sample images. Prepare the dataset first, then provide a corrected manifest or use the generated `training_bilingual.json` for a run on the original translations. Each run saves its best validation checkpoint and training log. The tester loads B and C once their checkpoints are available in `runs/corrected` or in the folder set by `GROUNDING_CHECKPOINTS`.
@@ -80,4 +93,4 @@ The Vue app lives in `frontend/`. The API, data pipeline, models, and evaluation
 
 ## Credits
 
-[Grounding DINO-Tiny](https://huggingface.co/IDEA-Research/grounding-dino-tiny) · [TahrirchiBERT-base](https://huggingface.co/tahrirchi/tahrirchi-bert-base) · [NLLB-200 distilled 600M](https://huggingface.co/facebook/nllb-200-distilled-600M) · [COCO sample credits](frontend/SAMPLES.md). The NLLB model card lists a noncommercial license.
+[Grounding DINO-Tiny](https://huggingface.co/IDEA-Research/grounding-dino-tiny) · [TahrirchiBERT-base](https://huggingface.co/tahrirchi/tahrirchi-bert-base) · [NLLB-200 distilled 600M](https://huggingface.co/facebook/nllb-200-distilled-600M) · [Sample image credits](frontend/SAMPLES.md). The NLLB model card lists a noncommercial license.

@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from src.common import config, read_json
+from src.inference.instances import MAX_INSTANCES, multiple_instances
 from src.inference.translation_backend import InvalidTranslation, backend
 from src.models.grounding_dino import Grounder, load_delta
 
@@ -77,13 +78,17 @@ def predict(approach: Annotated[ModelID, Form()], prompt: Annotated[str, Form(ma
     if not ready(approach):
         raise HTTPException(409, f"Model {approach} needs a checkpoint and training.json in its run folder.")
     picture = decode_upload(image)
+    instances = multiple_instances(prompt)
+    detection_prompt, requested_count = instances or (prompt, None)
+    instance_limit = min(requested_count or MAX_INSTANCES, MAX_INSTANCES) if instances else None
     try:
         with lock:
             model = load_detector("D" if approach in ("A", "D") else approach)
             translation = translator() if approach == "A" else None
             start = perf_counter()
-            grounded_prompt = translation.translate(prompt, "uz", "en") if translation else prompt
-            boxes, scores = model.predict(picture, grounded_prompt)
+            grounded_prompt = (translation.translate(detection_prompt, "uz", "en")
+                               if translation else detection_prompt)
+            boxes, scores = model.predict(picture, grounded_prompt, instance_limit=instance_limit)
             duration_ms = (perf_counter() - start) * 1000
     except InvalidTranslation as exc:
         raise HTTPException(422, "Translation failed. Try a shorter Uzbek prompt.") from exc
@@ -92,6 +97,7 @@ def predict(approach: Annotated[ModelID, Form()], prompt: Annotated[str, Form(ma
     except torch.OutOfMemoryError as exc:
         raise HTTPException(503, "The GPU is out of memory. Free GPU memory and restart the local server.") from exc
     return {"approach": approach, "grounded_prompt": grounded_prompt,
+            "mode": "instances" if instances else "ranked", "requested_count": requested_count,
             "width": picture.width, "height": picture.height, "duration_ms": duration_ms,
             "predictions": [{"box": box, "score": score} for box, score in zip(boxes, scores, strict=True)]}
 
