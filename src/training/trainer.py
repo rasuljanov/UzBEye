@@ -5,7 +5,7 @@ from pathlib import Path
 from time import perf_counter
 
 import torch
-from torchvision.ops import generalized_box_iou, sigmoid_focal_loss
+from torchvision.ops import box_iou, generalized_box_iou, sigmoid_focal_loss
 
 from src.common import digest, environment, peak_mib, sync, write_json
 from src.data.dataset import open_image, training_input_hash
@@ -13,26 +13,39 @@ from src.data.preprocessing import corners, normalized_box
 from src.evaluation.metrics import overlaps
 
 
-def grounding_loss(logits, boxes, target):
+def grounding_loss(logits, boxes, target, *, ranking_loss=False):
     # Exact single-target assignment: the minimum-cost query is the entire Hungarian match.
     target = boxes.new_tensor(target)[None]
     distance = (boxes - target).abs().sum(-1)
-    giou = generalized_box_iou(corners(boxes), corners(target))[:, 0]
+    box_corners, target_corners = corners(boxes), corners(target)
+    giou = generalized_box_iou(box_corners, target_corners)[:, 0]
+    scores = logits.sigmoid().mean(-1)
     with torch.no_grad():
-        matched = (5*distance - 2*giou - logits.sigmoid().mean(-1)).argmin()
+        matched = (5*distance - 2*giou - scores).argmin()
     labels = torch.zeros_like(logits)
     labels[matched] = 1
     focal = sigmoid_focal_loss(logits, labels, alpha=.25, gamma=2, reduction="sum") / logits.shape[1]
-    return focal + 5*distance[matched] + 2*(1-giou[matched])
+    loss = focal + 5*distance[matched] + 2*(1-giou[matched])
+    if ranking_loss:
+        with torch.no_grad():
+            iou = box_iou(box_corners.clamp(0, 1), target_corners)[:, 0]
+            valid = iou >= .5
+        # Compare the best-localized box with the highest-scoring incorrect box.
+        wrong_score = scores.masked_fill(valid, -torch.inf).max()
+        penalty = (.1 + wrong_score - scores[iou.argmax()]).relu()
+        loss = loss + torch.where(valid.any(), penalty, 0.)
+    return loss
 
 
 def validation(model, root, rows):
     model.eval()
-    correct = 0
+    top1 = top5 = 0
     for row in rows:
         boxes, _ = model.predict(open_image(root, row), row["uz"])
-        correct += overlaps(row, boxes)[0] >= .5
-    return correct / len(rows)
+        iou = overlaps(row, boxes)
+        top1 += iou[0] >= .5
+        top5 += max(iou[:5]) >= .5
+    return top1 / len(rows), top5 / len(rows)
 
 
 def fit(model, root, rows, folder, cfg, approach):
@@ -55,7 +68,8 @@ def fit(model, root, rows, folder, cfg, approach):
         torch.cuda.reset_peak_memory_stats(device)
     sync(device)
     start = perf_counter()
-    best, stale, updates = -1, 0, 0
+    best, best_top5, stale, updates = -1, 0., 0, 0
+    ranking_loss = cfg.get("ranking_loss", False)
     provenance = dict(config=cfg, approach=approach, data_hash=digest(train + val),
                       training_input_hash=training_input_hash(rows),
                       environment=environment(device), trainable=sum(p.numel() for p in names.values()),
@@ -75,7 +89,7 @@ def fit(model, root, rows, folder, cfg, approach):
                 total = 0.
                 for row in group:
                     logits, boxes = model(open_image(root, row), row["uz"])
-                    loss = grounding_loss(logits, boxes, normalized_box(row))
+                    loss = grounding_loss(logits, boxes, normalized_box(row), ranking_loss=ranking_loss)
                     if not torch.isfinite(loss):
                         raise FloatingPointError("Non-finite grounding loss")
                     scaler.scale(loss / len(group)).backward()
@@ -100,11 +114,11 @@ def fit(model, root, rows, folder, cfg, approach):
             if updates == 0:
                 raise FloatingPointError("No optimizer step applied; inspect gradient and precision logs")
             print(f"{epoch_label} | Running validation...", flush=True)
-            score = validation(model, root, val)
-            print(json.dumps(dict(epoch=epoch+1, val_accuracy=score)), file=log, flush=True)
-            print(f"{epoch_label} | Validation accuracy at IoU >= 0.5: {score:.1%}", flush=True)
+            score, top5 = validation(model, root, val)
+            print(json.dumps(dict(epoch=epoch+1, val_accuracy=score, val_recall_5=top5)), file=log, flush=True)
+            print(f"{epoch_label} | Validation at IoU >= 0.5 | Top-1 {score:.1%} | Top-5 {top5:.1%}", flush=True)
             if score > best:
-                best, stale = score, 0
+                best, best_top5, stale = score, top5, 0
                 tmp = folder/"best.tmp"
                 torch.save(dict(approach=approach, config=cfg,
                                 weights={k:v.detach().cpu() for k,v in names.items()}), tmp)
@@ -117,6 +131,7 @@ def fit(model, root, rows, folder, cfg, approach):
                 break
     sync(device)
     write_json(folder/"training.json", provenance | dict(train_seconds=perf_counter()-start,
-               best_val_accuracy=best, epochs_completed=epoch+1, updates=updates, peak_mib=peak_mib(device),
-               delta_bytes=(folder/"best.pt").stat().st_size))
-    print(f"Training complete. Best validation accuracy: {best:.1%}. Checkpoint: {folder/'best.pt'}", flush=True)
+               best_val_accuracy=best, best_val_recall_5=best_top5, epochs_completed=epoch+1,
+               updates=updates, peak_mib=peak_mib(device), delta_bytes=(folder/"best.pt").stat().st_size))
+    print(f"Training complete. Best checkpoint | Top-1 {best:.1%} | Top-5 {best_top5:.1%} | {folder/'best.pt'}",
+          flush=True)

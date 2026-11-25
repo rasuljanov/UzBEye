@@ -269,7 +269,8 @@
       "C-original": "runs\\finetune\\C\\best.pt",
       "C-corrected": "runs\\corrected\\C\\best.pt",
       "B-original": "runs\\finetune\\B\\best.pt",
-      "B-corrected": "runs\\corrected\\B\\best.pt"
+      "B-corrected": "runs\\corrected\\B\\best.pt",
+      "C-ranking": "runs\\corrected-ranking\\C\\best.pt"
     }
   },
   "results": [
@@ -376,6 +377,32 @@
       "detector_parameter_bytes": 689014792,
       "translator_parameter_bytes": 0,
       "hits": 106
+    },
+    {
+      "accuracy_50": 0.4823529411764706,
+      "recall_1": 0.4823529411764706,
+      "recall_5": 0.5843137254901961,
+      "mean_iou": 0.4768105920879876,
+      "total_ms_p50": 208.31419999012724,
+      "total_ms_p95": 257.0692399953259,
+      "inference_ms_p50": 204.1511999850627,
+      "inference_ms_p95": 250.83268000162207,
+      "translation_ms_p50": 0.0,
+      "translation_ms_p95": 0.0,
+      "n": 255,
+      "mean_seconds": 0.2152145894117626,
+      "queries_per_s": 4.646525139086806,
+      "peak_allocated_mib": 1003.05859375,
+      "gpu_util_percent": 35.625,
+      "gpu_util_samples": 88,
+      "checkpoint_bytes": 1163979673,
+      "approach": "C-ranking",
+      "train_seconds": 8124.897320499993,
+      "trainable": 9126912,
+      "delta_bytes": 36521097,
+      "detector_parameter_bytes": 689014792,
+      "translator_parameter_bytes": 0,
+      "hits": 123
     },
     {
       "accuracy_50": 0.38823529411764707,

@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import accuracyLatency from '../../docs/figures/accuracy-latency.png'
+import boxRankBreakdown from '../../docs/figures/box-rank-breakdown.png'
 import translationRepair from '../../docs/figures/translation-repair.png'
 
 const panel = ref(null)
@@ -19,13 +20,24 @@ const panel = ref(null)
     <div class="reports-body">
       <section aria-labelledby="validation-title">
         <h3 id="validation-title">Uzbek visual grounding results</h3>
-        <p>UzBEye compares inference-time translation with direct Uzbek grounding. All four models were
-          evaluated on the same 255 corrected Uzbek validation prompts.</p>
+        <p>UzBEye compares inference-time translation with direct Uzbek grounding. All runs use
+          the same 255 corrected Uzbek validation prompts for this comparison.</p>
         <figure>
           <img :src="accuracyLatency" width="1224" height="936"
-               alt="Accuracy versus median latency. Model A leads at 49.4% and 450 milliseconds. Corrected B and C score 42.7% and 41.6% at roughly 205 milliseconds.">
+               alt="Accuracy versus median latency. Model A scores 49.4% at 450 milliseconds. Model C with ranking loss scores 48.2% at 208 milliseconds.">
           <figcaption>Top-1 accuracy counts a match when the first box overlaps the target with IoU ≥ 0.5.
             Latency was measured on a Quadro RTX 5000 and includes uncached translation for A.</figcaption>
+        </figure>
+      </section>
+
+      <section aria-labelledby="ranking-title">
+        <h3 id="ranking-title">Model C with ranking loss</h3>
+        <p>Top-1 accuracy rose from 41.6% to 48.2%. Top-5 recall fell from 82.7% to 58.4%.</p>
+        <figure>
+          <img :src="boxRankBreakdown" width="1224" height="900" loading="lazy"
+               alt="Model C gained 17 first-ranked matches and lost 62 matches across the top five.">
+          <figcaption>Each bar counts whether the first matching box was ranked first, ranked second to fifth,
+            or absent from the top five.</figcaption>
         </figure>
       </section>
 

@@ -10,7 +10,9 @@ param(
     [ValidatePattern('^[a-zA-Z0-9][a-zA-Z0-9_-]*$')]
     [string]$RunName = 'finetune',
 
-    [string]$Manifest = 'data/refcocog/training_bilingual.json'
+    [string]$Manifest = 'data/refcocog/training_bilingual.json',
+
+    [switch]$RankingLoss
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +22,13 @@ $dataset = Join-Path $root 'data/refcocog'
 $manifestPath = if ([IO.Path]::IsPathRooted($Manifest)) { $Manifest } else { Join-Path $root $Manifest }
 $model = $Model.ToUpperInvariant()
 $output = Join-Path $root "runs/$RunName/$model"
+$rankingArgs = @()
+if ($RankingLoss) {
+    if ($model -ne 'C') {
+        throw '-RankingLoss is only supported for Model C.'
+    }
+    $rankingArgs = @('--ranking-loss')
+}
 
 if (!(Test-Path -LiteralPath $python -PathType Leaf)) {
     throw 'The project virtual environment is missing. See README.md for setup.'
@@ -38,7 +47,7 @@ $module = if ($model -eq 'B') { 'scripts.train_translate' } else { 'scripts.trai
 Push-Location -LiteralPath $root
 try {
     Write-Host "Starting Model $model. Training log: $(Join-Path $output 'training.jsonl')"
-    & $python -u -m $module --root $dataset --manifest $manifestPath --out $output --epochs $Epochs
+    & $python -u -m $module --root $dataset --manifest $manifestPath --out $output --epochs $Epochs @rankingArgs
     exit $LASTEXITCODE
 } finally {
     Pop-Location

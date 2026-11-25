@@ -95,6 +95,22 @@ def test_objective_and_metrics():
     assert crossover(50,2,1) == 50 and crossover(50,1,2) is None
 
 
+def test_ranking_loss_prefers_the_best_overlap_over_the_highest_scoring_wrong_box():
+    target = [.5, .5, .2, .2]
+    boxes = torch.tensor([target, [.5,.5,.18,.18], [.2,.2,.1,.1], [.8,.8,.1,.1]])
+    logits = torch.tensor([[-2., -2.], [3., 3.], [1., 1.], [0., 0.]], requires_grad=True)
+    extra = grounding_loss(logits, boxes, target, ranking_loss=True) - grounding_loss(logits, boxes, target)
+    gradients, = torch.autograd.grad(extra, logits)
+    assert extra > 0
+    assert (gradients[0] < 0).all() and (gradients[2] > 0).all()
+    torch.testing.assert_close(gradients[[1, 3]], torch.zeros_like(gradients[[1, 3]]))
+
+    for subset in (slice(0, 2), slice(2, 4)):
+        default = grounding_loss(logits[subset], boxes[subset], target)
+        ranked = grounding_loss(logits[subset], boxes[subset], target, ranking_loss=True)
+        torch.testing.assert_close(ranked, default)
+
+
 def test_review_source_and_identity():
     row = dict(id=1,image_id=2,en="red",mt="qizil",bbox=[0,0,2,2],split="test")
     review = dict(row,uz="qizil",reviewer="reader",status="accepted")

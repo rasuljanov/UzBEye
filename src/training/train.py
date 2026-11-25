@@ -15,8 +15,12 @@ def main(approach):
     p.add_argument("--out", required=True)
     p.add_argument("--epochs", type=int)
     p.add_argument("--device", default="cuda")
+    if approach == "C":
+        p.add_argument("--ranking-loss", action="store_true", help="Add a box ranking loss to Model C training")
     args = p.parse_args()
     cfg = config(args.config)
+    if approach == "C" and args.ranking_loss:
+        cfg["ranking_loss"] = True
     if args.epochs is not None:
         if args.epochs < 1:
             p.error("--epochs must be positive")
@@ -30,6 +34,8 @@ def main(approach):
         p.error(f"Output directory already exists: {args.out}. Choose a new directory.")
     rows = read_json(manifest)
     device = torch.device(args.device)
+    if cfg.get("ranking_loss"):
+        print("Using the existing grounding loss plus the box ranking loss.", flush=True)
     print(f"Loading Model {approach} on {device}...", flush=True)
     seed_all(cfg["seed"])
     try:

@@ -24,10 +24,12 @@ TEAL = "#a8cfb8"
 GOLD = "#e7b38b"
 SLATE = "#a9bec7"
 LAVENDER = "#c9b9e5"
+ROSE = "#edb8c5"
 VARIANTS = {
     "A-cold": ("A · Translate-at-Inference", GOLD),
     "B-corrected": ("B · Translate-Train", TEAL),
     "C-corrected": ("C · Uzb-lang encoder", LAVENDER),
+    "C-ranking": ("C · With ranking loss", ROSE),
     "D": ("D · Zero-Shot Uzbek", SLATE),
 }
 
@@ -64,7 +66,10 @@ def finish(fig, title_font, title, subtitle, footer, out):
 def tradeoff(rows, title_font, out):
     fig, ax = plt.subplots(figsize=(6.8, 5.2))
     fig.subplots_adjust(left=.14, right=.93, bottom=.20, top=.76)
-    offsets = {"A-cold": (-10, 10), "B-corrected": (12, 14), "C-corrected": (12, -17), "D": (12, 0)}
+    offsets = {
+        "A-cold": (-10, 10), "B-corrected": (12, 14), "C-corrected": (12, -17),
+        "C-ranking": (12, 10), "D": (12, 0),
+    }
 
     for key, (label, color) in VARIANTS.items():
         row = rows[key]
@@ -79,7 +84,7 @@ def tradeoff(rows, title_font, out):
     ax.yaxis.set_major_formatter(PercentFormatter(xmax=100, decimals=0))
     ax.grid(axis="both")
     finish(fig, title_font, "Accuracy versus latency",
-           "A scores highest. Corrected B and C respond in about 205 ms.",
+           "C with ranking loss approaches A’s top-1 score at about half the latency.",
            "255 corrected validation prompts · Quadro RTX 5000 · A includes translation", out)
 
 
@@ -137,13 +142,14 @@ def ranking(rows, title_font, out):
                     fontsize=12, fontweight=600)
             left += count
 
+    row_labels = ["C + ranking" if key == "C-ranking" else f"Model {key[0]}" for key in VARIANTS]
     ax.set(xlim=(0, next(iter(rows.values()))["n"]), xlabel="Validation prompts",
-           yticks=list(range(len(VARIANTS))), yticklabels=[f"Model {name[0]}" for name in VARIANTS])
+           yticks=list(range(len(VARIANTS))), yticklabels=row_labels)
     ax.invert_yaxis()
     handles = [Patch(facecolor=fill, label=label) for fill, label in zip(fills, labels, strict=True)]
     fig.legend(handles=handles, loc="center", bbox_to_anchor=(.53, .129), ncol=3, frameon=False)
     finish(fig, title_font, "Rank of the first matching box",
-           "C found a match at ranks 2–5 on 105 prompts where rank 1 missed.",
+           "Ranking loss improves C’s first box and reduces matches in its top five.",
            "255 prompts per model · B and C use corrected training prompts", out)
 
 

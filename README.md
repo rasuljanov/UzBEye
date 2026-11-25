@@ -34,19 +34,24 @@ All rows below use the same **255 corrected validation prompts** on a Quadro RTX
 | B · Corrected translations | 42.7% (109/255) | 81.6% | 207 ms |
 | C · Original translations | 42.4% (108/255) | 76.9% | 207 ms |
 | C · Corrected translations | 41.6% (106/255) | 82.7% | 204 ms |
+| C · Corrected translations + ranking loss | 48.2% (123/255) | 58.4% | 208 ms |
 | D · Zero-Shot Uzbek | 35.3% (90/255) | 65.9% | 212 ms |
 
 See the [benchmark data and evaluation protocol](docs/validation-results.json). The validation split was used for checkpoint selection. The 128 selected official test expressions still have English annotations and need Uzbek review before held-out evaluation.
 
 ### Reading the results
 
-![Scatter plot of top-1 accuracy and median latency. A reaches 49.4% at 450 ms. Corrected B and C reach 42.7% and 41.6% at roughly 205 ms.](docs/figures/accuracy-latency.png)
+![Scatter plot of top-1 accuracy and median latency. Model C with ranking loss reaches 48.2% at 208 ms. Model A reaches 49.4% at 450 ms.](docs/figures/accuracy-latency.png)
 
-**Accuracy and latency.** A returned 17 more correct first-ranked boxes than corrected B across 255 prompts. B’s median latency was 207 ms compared with 450 ms for A, which includes uncached translation.
+**Accuracy and latency.** C with ranking loss returned 123 correct first boxes in 208 ms median latency. A returned 126 correct first boxes in 450 ms, including uncached translation.
 
 ![Paired plots showing top-1 and top-5 scores for B and C trained on the original and corrected translations.](docs/figures/translation-repair.png)
 
-**Translation repairs.** B gained 10 first-ranked matches and lost nine top-five matches. C lost two first-ranked matches and gained 15 top-five matches. The training prompts and the validation prompts used for checkpoint selection both changed between the two versions. The [box rank breakdown](docs/figures/box-rank-breakdown.png) shows that corrected C placed a matching box at ranks 2–5 on 105 prompts where its first box missed.
+**Translation repairs.** B gained 10 first-ranked matches and lost nine top-five matches. C lost two first-ranked matches and gained 15 top-five matches. The training prompts and the validation prompts used for checkpoint selection both changed between the two versions.
+
+![Stacked bars comparing the first correct box across models. With ranking loss, Model C goes from 106 to 123 first-ranked matches and from 211 to 149 matches anywhere in the top five.](docs/figures/box-rank-breakdown.png)
+
+**Ranking loss.** On the same 255 prompts, Model C gained 17 first-ranked matches (+6.7 percentage points) and lost 62 matches among its top five (−24.3 percentage points). Both runs used the same corrected training data and seed. The baseline stopped after three epochs and the ranking-loss run completed five. Checkpoint selection and scoring both used this validation split.
 
 After installing the Python and frontend dependencies, regenerate the figures with `.\.venv\Scripts\python.exe -m scripts.plot_validation_results`.
 
@@ -94,6 +99,14 @@ The commands below use the local corrected manifest. A fresh clone contains sour
 .\scripts\finetune.ps1 -Model C -RunName reproduction -Manifest data/refcocog/training_bilingual_corrected.json
 .\.venv\Scripts\python.exe -m scripts.run_comparison --root data/refcocog --manifest data/refcocog/training_bilingual_corrected.json --runs runs/reproduction --out runs/reproduction-validation --validation
 ```
+
+To test Model C with the existing loss plus a box ranking loss, use the same corrected manifest and a fresh run name.
+
+```powershell
+.\scripts\finetune.ps1 -Model C -RunName corrected-ranking -Manifest data/refcocog/training_bilingual_corrected.json -RankingLoss
+```
+
+The launcher starts from the same pretrained weights as the reproduction run. Each validation pass prints top-1 and top-5 at IoU ≥ 0.5. The best checkpoint is selected by top-1, and its paired top-5 is recorded in `runs/corrected-ranking/C/training.json`.
 
 To prepare the original subset from scratch, run `scripts.prepare_dataset` with `--root data/refcocog --limits 4096 256 128`, then `src.data.translate` with `--root data/refcocog --stage training --batch-size 16` using `python -m`. Increase the limits to select more expressions. The corrected manifest and its audit are stored separately from this generated baseline.
 
