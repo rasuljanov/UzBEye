@@ -48,7 +48,7 @@ See the [benchmark data and evaluation protocol](docs/validation-results.json). 
 
 **Translation repairs.** B gained 10 first-ranked matches and lost nine top-five matches. C lost two first-ranked matches and gained 15 top-five matches. The training prompts and the validation prompts used for checkpoint selection both changed between the two versions. The [box rank breakdown](docs/figures/box-rank-breakdown.png) shows that corrected C placed a matching box at ranks 2–5 on 105 prompts where its first box missed.
 
-Regenerate the figures with `.\.venv\Scripts\python.exe -m scripts.plot_validation_results`.
+After installing the Python and frontend dependencies, regenerate the figures with `.\.venv\Scripts\python.exe -m scripts.plot_validation_results`.
 
 ## Why the results may differ
 

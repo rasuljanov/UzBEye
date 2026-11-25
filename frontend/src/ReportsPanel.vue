@@ -22,7 +22,7 @@ const panel = ref(null)
         <p>UzBEye compares inference-time translation with direct Uzbek grounding. All four models were
           evaluated on the same 255 corrected Uzbek validation prompts.</p>
         <figure>
-          <img :src="accuracyLatency"
+          <img :src="accuracyLatency" width="1224" height="936"
                alt="Accuracy versus median latency. Model A leads at 49.4% and 450 milliseconds. Corrected B and C score 42.7% and 41.6% at roughly 205 milliseconds.">
           <figcaption>Top-1 accuracy counts a match when the first box overlaps the target with IoU ≥ 0.5.
             Latency was measured on a Quadro RTX 5000 and includes uncached translation for A.</figcaption>
@@ -35,7 +35,7 @@ const panel = ref(null)
           encoder and learns a new projection during grounding fine-tuning. D uses the original detector
           directly on Uzbek as the zero-shot baseline.</p>
         <figure>
-          <img :src="translationRepair" loading="lazy"
+          <img :src="translationRepair" width="1224" height="1134" loading="lazy"
                alt="Before and after translation repairs. B gained 10 first-ranked matches. C gained 15 matches among its top five.">
           <figcaption>Both the training prompts and the prompts used for checkpoint selection changed.
             Top-5 recall counts a match anywhere among the five highest-ranked boxes.</figcaption>
@@ -122,6 +122,8 @@ const panel = ref(null)
   display: block;
   width: 100%;
   height: auto;
+  object-fit: contain;
+  border: 1px solid var(--border);
   border-radius: var(--radius-control);
 }
 

@@ -10,6 +10,7 @@ Pillow==11.2.1
 scipy==1.15.3
 pandas==2.2.3
 matplotlib==3.10.3
+Brotli==1.1.0
 pyarrow==20.0.0
 PyYAML==6.0.2
 pytest==8.3.5
