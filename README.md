@@ -44,7 +44,7 @@ For candidate box $b_i$ and prompt token logits $z_{it}$, the box score is the m
 s_i = \frac{1}{T}\sum_{t=1}^{T}\sigma(z_{it})
 ```
 
-Let $`b^*`$ be the labeled box and $`q_i = \operatorname{IoU}(b_i,b^*)`$. The positive $i^+$ is the candidate with maximum IoU. The negative $i^-$ is the highest-scoring candidate with $`q_i < 0.5`$. When $q_{i^+}\ge 0.5$ and a negative exists, the ranking term is
+Let $`b^*`$ be the labeled box and $`q_i = \mathrm{IoU}(b_i,b^*)`$. The positive $i^+$ is the candidate with maximum IoU. The negative $i^-$ is the highest-scoring candidate with $`q_i < 0.5`$. When $q_{i^+}\ge 0.5$ and a negative exists, the ranking term is
 
 ```math
 \mathcal{L}_{\mathrm{rank}} =
@@ -58,7 +58,7 @@ With ranking enabled, the full loss is
 ```math
 \begin{aligned}
 \mathcal{L} &= \mathcal{L}_{\mathrm{focal}} + 5\lVert b_j-b^*\rVert_1 \\
-&\quad + 2\bigl(1-\operatorname{GIoU}(b_j,b^*)\bigr)
+&\quad + 2\bigl(1-\mathrm{GIoU}(b_j,b^*)\bigr)
 + \mathcal{L}_{\mathrm{rank}}.
 \end{aligned}
 ```
