@@ -31,8 +31,22 @@ const panel = ref(null)
       </section>
 
       <section aria-labelledby="ranking-title">
-        <h3 id="ranking-title">Polished 8k Uzbek encoder</h3>
-        <p>Compared with the 4k ranking run, top-1 accuracy rose from 48.2% to 56.5% and top-5 recall rose from 58.4% to 64.7%.</p>
+        <h3 id="ranking-title">Model C ranking experiment</h3>
+        <p>The added loss encourages the best-overlapping box to score at least 0.10 higher than the strongest incorrect candidate.
+          A matching box has IoU of at least 0.5.</p>
+        <math class="ranking-equation" display="block"
+              aria-label="Ranking loss equals the maximum of zero and 0.10 plus the wrong box score minus the best box score">
+          <mrow>
+            <msub><mi>L</mi><mtext>rank</mtext></msub>
+            <mo>=</mo>
+            <mi>max</mi><mo>(</mo><mn>0</mn><mo>,</mo><mn>0.10</mn><mo>+</mo>
+            <msub><mi>s</mi><mtext>wrong</mtext></msub><mo>−</mo>
+            <msub><mi>s</mi><mtext>best</mtext></msub><mo>)</mo>
+          </mrow>
+        </math>
+        <p>On corrected 4k data, the ranking run raised top-1 from 41.6% to 48.2% and reduced top-5
+          from 82.7% to 58.4%. The polished 8k follow-up reached 56.5% top-1 and 64.7% top-5
+          with more training data and optimizer updates.</p>
         <figure>
           <img :src="boxRankBreakdown" width="1224" height="990" loading="lazy"
                alt="Polished 8k C ranked the matching box first on 144 prompts and in the top five on 165 prompts.">
@@ -42,17 +56,13 @@ const panel = ref(null)
       </section>
 
       <section aria-labelledby="training-title">
-        <h3 id="training-title">How the training runs differ</h3>
-        <p>B keeps Grounding DINO’s pretrained text encoder and projection. C uses an Uzbek-pretrained
-          encoder and learns a new projection during grounding fine-tuning. D uses the original detector
-          directly on Uzbek as the zero-shot baseline.</p>
+        <h3 id="training-title">Accuracy across checkpoints</h3>
         <figure>
           <img :src="trainingRuns" width="1224" height="1134" loading="lazy"
                alt="Top-1 accuracy and top-5 recall for Models B and C. Four Model C checkpoints are connected by a thin line in each plot.">
-          <figcaption>The two ranking-loss runs used different amounts of training data. Top-5 recall counts
-            a match anywhere among the five highest-ranked boxes.</figcaption>
+          <figcaption>Top-5 recall counts a match anywhere among the five highest-ranked boxes.</figcaption>
         </figure>
-        <p class="report-note">These scores come from validation. The held-out test set still needs reviewed Uzbek prompts.</p>
+        <p class="report-note">The same validation set was used for checkpoint selection and scoring.</p>
       </section>
     </div>
   </dialog>
@@ -124,6 +134,11 @@ const panel = ref(null)
   margin: 0;
   color: var(--muted);
   font-size: .875rem;
+}
+
+.ranking-equation {
+  margin: 10px 0 12px;
+  color: var(--ink);
 }
 
 .reports-body figure {
