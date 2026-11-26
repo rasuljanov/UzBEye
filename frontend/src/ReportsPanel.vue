@@ -24,7 +24,7 @@ const panel = ref(null)
           the same 255 corrected Uzbek validation prompts for this comparison.</p>
         <figure>
           <img :src="accuracyLatency" width="1224" height="936"
-               alt="Accuracy versus median latency. A thin line connects all four Model C runs. An inset separates three runs close to 205 milliseconds. Polished 8k C scores 56.5% at 236 milliseconds.">
+               alt="Accuracy versus median latency. A thin line connects C-base, C-4k, and C-8k. An inset separates B and C-base near 205 milliseconds. C-8k scores 56.5% at 236 milliseconds.">
           <figcaption>Top-1 accuracy counts a match when the first box overlaps the target with IoU ≥ 0.5.
             Latency was measured on a Quadro RTX 5000 and includes uncached translation for A.</figcaption>
         </figure>
@@ -44,12 +44,12 @@ const panel = ref(null)
             <msub><mi>s</mi><mtext>best</mtext></msub><mo>)</mo>
           </mrow>
         </math>
-        <p>On corrected 4k data, the ranking run raised top-1 from 41.6% to 48.2% and reduced top-5
-          from 82.7% to 58.4%. The polished 8k follow-up reached 56.5% top-1 and 64.7% top-5
+        <p>From C-base to C-4k, top-1 rose from 41.6% to 48.2% and top-5 fell from 82.7% to 58.4%.
+          C-8k reached 56.5% top-1 and 64.7% top-5
           with more training data and optimizer updates.</p>
         <figure>
           <img :src="boxRankBreakdown" width="1224" height="990" loading="lazy"
-               alt="Polished 8k C ranked the matching box first on 144 prompts and in the top five on 165 prompts.">
+               alt="C-8k ranked the matching box first on 144 prompts and in the top five on 165 prompts.">
           <figcaption>Each bar counts whether the first matching box was ranked first, ranked second to fifth,
             or absent from the top five.</figcaption>
         </figure>
@@ -59,7 +59,7 @@ const panel = ref(null)
         <h3 id="training-title">Accuracy across checkpoints</h3>
         <figure>
           <img :src="trainingRuns" width="1224" height="1134" loading="lazy"
-               alt="Top-1 accuracy and top-5 recall for Models B and C. Four Model C checkpoints are connected by a thin line in each plot.">
+               alt="Top-1 accuracy and top-5 recall for A, B, C-base, C-4k, and C-8k. A thin line connects the three C variants.">
           <figcaption>Top-5 recall counts a match anywhere among the five highest-ranked boxes.</figcaption>
         </figure>
         <p class="report-note">The same validation set was used for checkpoint selection and scoring.</p>

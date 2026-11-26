@@ -8,14 +8,15 @@ UzBEye is an applied experiment in **Uzbek visual grounding**. Given an image an
 
 Grounding DINO uses a text prompt to locate an object or region. To use an English-oriented checkpoint with Uzbek prompts, one can translate the query first or adapt the detector to Uzbek text. Translation adds work to every uncached query and can change cues such as position, color, or count. Direct grounding moves that work into fine-tuning and requires the model to learn which Uzbek words distinguish the target from nearby objects. [Grounding DINO paper](https://arxiv.org/abs/2303.05499)
 
-The study asks two questions. How does direct Uzbek grounding compare with translation at inference time on accuracy and latency? Can a training objective that explicitly ranks a matching box above its strongest competitor improve the first prediction while preserving useful alternatives? The corrected 4k Model C motivated the second question. It returned the correct box at ranks 2–5 on **105 of 255 prompts** where its first prediction missed.
+The study asks two questions. How does direct Uzbek grounding compare with translation at inference time on accuracy and latency? Can a training objective that explicitly ranks a matching box above its strongest competitor improve the first prediction while preserving useful alternatives? C-base motivated the second question. It returned the correct box at ranks 2–5 on **105 of 255 prompts** where its first prediction missed.
 
 | Model | Approach |
 |---|---|
 | A · Translate-at-Inference | Translate Uzbek to English with NLLB, then run pretrained Grounding DINO-Tiny. |
-| B · Translate-Train | Keep the original text encoder and fine-tune on Uzbek RefCOCOg prompts. |
-| C · Uzb-lang encoder | Replace the detector’s text encoder with TahrirchiBERT, learn a new text projection, and fine-tune on Uzbek prompts. |
-| D · Zero-Shot Uzbek | Send Uzbek prompts directly to pretrained Grounding DINO-Tiny. |
+| B · Translate-and-Train | Keep the original text encoder and fine-tune on corrected Uzbek RefCOCOg prompts. |
+| C-base · Uzbek-encoder-FT | Replace the detector’s text encoder with TahrirchiBERT and fine-tune on corrected 4k Uzbek prompts. |
+| C-4k · C-base-ranking-loss | Use the C-base architecture and the corrected 4k prompts with ranking loss. |
+| C-8k · C-base-8k-ranking-loss | Use the C-base architecture with ranking loss on the polished 8k dataset. |
 
 ## Methodology
 
@@ -31,9 +32,9 @@ Model C freezes the vision backbone and box heads. Fine-tuning updates the text 
 
 | Model C run | Training examples | Ranking term | Best / completed epoch | Total optimizer updates |
 |---|---:|---|---:|---:|
-| Corrected 4k | 4,085 | Off | 1 / 3 | 1,533 |
-| Corrected 4k + ranking | 4,085 | On | 4 / 5 | 2,555 |
-| Polished 8k + ranking | 8,000 | On | 4 / 5 | 5,000 |
+| C-base | 4,085 | Off | 1 / 3 | 1,533 |
+| C-4k | 4,085 | On | 4 / 5 | 2,555 |
+| C-8k | 8,000 | On | 4 / 5 | 5,000 |
 
 ### Ranking objective
 
@@ -73,36 +74,33 @@ Latency was measured one prompt at a time on a Quadro RTX 5000 after three warm-
 
 | Model and training data | Top-1 accuracy | Top-5 recall | Median latency |
 |---|---:|---:|---:|
-| A · Translate-at-Inference, uncached | 49.4% (126/255) | 82.0% | 450 ms |
-| B · Original translations | 38.8% (99/255) | **85.1%** | 208 ms |
-| B · Corrected translations | 42.7% (109/255) | 81.6% | 207 ms |
-| C · Original translations | 42.4% (108/255) | 76.9% | 207 ms |
-| C · Corrected 4k | 41.6% (106/255) | 82.7% | 204 ms |
-| C · Corrected 4k + ranking | 48.2% (123/255) | 58.4% | 208 ms |
-| C · Polished 8k + ranking | **56.5% (144/255)** | 64.7% | 236 ms |
-| D · Zero-Shot Uzbek | 35.3% (90/255) | 65.9% | 212 ms |
+| A · Translate-at-Inference | 49.4% (126/255) | 82.0% | 450 ms |
+| B · Translate-and-Train | 42.7% (109/255) | 81.6% | 207 ms |
+| C-base · Uzbek-encoder-FT | 41.6% (106/255) | **82.7%** | 204 ms |
+| C-4k · C-base-ranking-loss | 48.2% (123/255) | 58.4% | 208 ms |
+| C-8k · C-base-8k-ranking-loss | **56.5% (144/255)** | 64.7% | 236 ms |
 
 ### First prediction and candidate coverage
 
-![Top-1 accuracy and top-5 recall across training runs. A thin line connects the four Model C checkpoints.](docs/figures/training-runs.png)
+![Top-1 accuracy and top-5 recall for five checkpoints. A thin line connects C-base, C-4k, and C-8k.](docs/figures/training-runs.png)
 
-On the corrected 4k training set, the ranking run returned **17 more first-box matches** and **62 fewer top-five matches** than the base objective. The drop in top-five recall matters for an interface that offers alternative boxes. The loss compares one positive with one high-scoring negative. A per-image error analysis would help explain the change in candidate coverage.
+On the corrected 4k training set, C-4k returned **17 more first-box matches** and **62 fewer top-five matches** than C-base. The drop in top-five recall matters for an interface that offers alternative boxes. The loss compares one positive with one high-scoring negative. A per-image error analysis would help explain the change in candidate coverage.
 
-![Rank breakdown for each checkpoint with Model C grouped. Polished 8k C achieved 144 rank-one matches and 165 top-five matches.](docs/figures/box-rank-breakdown.png)
+![Rank breakdown for five checkpoints with the C family grouped. C-8k achieved 144 rank-one matches and 165 top-five matches.](docs/figures/box-rank-breakdown.png)
 
-With the ranking objective retained, the polished 8k run added **21 first-box matches** and **16 top-five matches** over the 4k ranking run. Its top-five recall of 64.7% remained below the corrected 4k base objective’s 82.7%. The 8k follow-up changed corpus size, translation wording, and the number of optimizer updates together.
+With the ranking objective retained, C-8k added **21 first-box matches** and **16 top-five matches** over C-4k. Its top-five recall of 64.7% remained below C-base’s 82.7%. The 8k follow-up changed corpus size, translation wording, and the number of optimizer updates together.
 
 ### Accuracy and latency
 
-![Accuracy versus median latency with distinct markers and a thin line connecting Model C runs. The polished 8k point scores 56.5% at 236 ms.](docs/figures/accuracy-latency.png)
+![Accuracy versus median latency with distinct markers and a thin line connecting Model C runs. C-8k scores 56.5% at 236 ms.](docs/figures/accuracy-latency.png)
 
-Polished 8k C returned **18 more first-box matches** than uncached translation in this benchmark, with **about 48% lower median query latency**. It also took more work to train. The logged training run lasted about **4.32 hours**, compared with **2.26 hours** for the 4k ranking run. These values separate the upfront training cost from the per-query latency.
+C-8k returned **18 more first-box matches** than uncached translation in this benchmark, with **about 48% lower median query latency**. It also took more work to train. The logged training run lasted about **4.32 hours**, compared with **2.26 hours** for the 4k ranking run. These values separate the upfront training cost from the per-query latency.
 
 To regenerate the figures from the recorded metrics, run `.\.venv\Scripts\python.exe -m scripts.plot_validation_results` after installing the Python and frontend dependencies.
 
 ## Conclusion
 
-The polished 8k checkpoint is the strongest Model C choice for showing a single box on this validation set. Corrected 4k C without the ranking term retained more usable suggestions when the interface shows five boxes. The ranking experiment therefore gives different answers depending on how the predictions are used.
+C-8k is the strongest Model C choice for showing a single box on this validation set. C-base retained more usable suggestions when the interface shows five boxes. The ranking experiment therefore gives different answers depending on how the predictions are used.
 
 The runs use one seed and select checkpoints on the same validation split used for reporting. Early stopping also produced different update counts in the 4k comparison. A controlled follow-up would cross the loss choice with dataset size, match optimizer updates, and repeat over several seeds. An unpolished 8k run on the same expression IDs would isolate the effect of caption edits. The reserved 128 RefCOCOg test expressions currently need Uzbek review for that evaluation.
 
