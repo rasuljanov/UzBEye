@@ -23,8 +23,8 @@ const panel = ref(null)
         <p>UzBEye compares inference-time translation with direct Uzbek grounding. All runs use
           the same 255 corrected Uzbek validation prompts for this comparison.</p>
         <figure>
-          <img :src="accuracyLatency" width="1224" height="936"
-               alt="Accuracy versus median latency. A thin line connects C-base, C-4k, and C-8k. An inset separates B and C-base near 205 milliseconds. C-8k scores 56.5% at 236 milliseconds.">
+          <img :src="accuracyLatency" width="1224" height="810"
+               alt="Top-1 accuracy and median latency on aligned model rows. C-8k has the highest accuracy at 56.5% and takes 236 milliseconds per query.">
           <figcaption>Top-1 accuracy counts a match when the first box overlaps the target with IoU ≥ 0.5.
             Latency was measured on a Quadro RTX 5000 and includes uncached translation for A.</figcaption>
         </figure>
@@ -48,8 +48,8 @@ const panel = ref(null)
           C-8k reached 56.5% top-1 and 64.7% top-5
           with more training data and optimizer updates.</p>
         <figure>
-          <img :src="boxRankBreakdown" width="1224" height="990" loading="lazy"
-               alt="C-8k ranked the matching box first on 144 prompts and in the top five on 165 prompts.">
+          <img :src="boxRankBreakdown" width="1224" height="810" loading="lazy"
+               alt="Prompt counts by first matching rank. C-8k has the most rank-one matches at 144. C-base has the most matches in the top five at 211.">
           <figcaption>Each bar counts whether the first matching box was ranked first, ranked second to fifth,
             or absent from the top five.</figcaption>
         </figure>
@@ -58,7 +58,7 @@ const panel = ref(null)
       <section aria-labelledby="training-title">
         <h3 id="training-title">Accuracy across checkpoints</h3>
         <figure>
-          <img :src="trainingRuns" width="1224" height="1134" loading="lazy"
+          <img :src="trainingRuns" width="1224" height="810" loading="lazy"
                alt="Top-1 accuracy and top-5 recall for A, B, C-base, C-4k, and C-8k. A thin line connects the three C variants.">
           <figcaption>Top-5 recall counts a match anywhere among the five highest-ranked boxes.</figcaption>
         </figure>

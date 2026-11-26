@@ -82,7 +82,7 @@ Latency was measured one prompt at a time on a Quadro RTX 5000 after three warm-
 
 ### First prediction and candidate coverage
 
-![Top-1 accuracy and top-5 recall for five checkpoints. A thin line connects C-base, C-4k, and C-8k.](docs/figures/training-runs.png)
+![Top-1 accuracy and top-5 recall on shared 0–100% scales. C-8k leads top-1 and C-base leads top-5. Thin lines connect the three C variants.](docs/figures/training-runs.png)
 
 On the corrected 4k training set, C-4k returned **17 more first-box matches** and **62 fewer top-five matches** than C-base. The drop in top-five recall matters for an interface that offers alternative boxes. The loss compares one positive with one high-scoring negative. A per-image error analysis would help explain the change in candidate coverage.
 
@@ -92,7 +92,7 @@ With the ranking objective retained, C-8k added **21 first-box matches** and **1
 
 ### Accuracy and latency
 
-![Accuracy versus median latency with distinct markers and a thin line connecting Model C runs. C-8k scores 56.5% at 236 ms.](docs/figures/accuracy-latency.png)
+![Top-1 accuracy and median end-to-end latency on aligned model rows. C-8k scores 56.5% at 236 ms, compared with 49.4% at 450 ms for A.](docs/figures/accuracy-latency.png)
 
 C-8k returned **18 more first-box matches** than uncached translation in this benchmark, with **about 48% lower median query latency**. It also took more work to train. The logged training run lasted about **4.32 hours**, compared with **2.26 hours** for the 4k ranking run. These values separate the upfront training cost from the per-query latency.
 
