@@ -40,27 +40,28 @@ Model C freezes the vision backbone and box heads. Fine-tuning updates the text 
 
 For candidate box $b_i$ and prompt token logits $z_{it}$, the box score is the mean sigmoid over the $T$ tokens belonging to the referring expression.
 
-$$
+```math
 s_i = \frac{1}{T}\sum_{t=1}^{T}\sigma(z_{it})
-$$
+```
 
-Let $b^*$ be the labeled box and $q_i = \operatorname{IoU}(b_i,b^*)$. The positive $i^+$ is the candidate with maximum IoU. The negative $i^-$ is the highest-scoring candidate with $q_i < 0.5$. When $q_{i^+}\ge 0.5$ and a negative exists, the ranking term is
+Let $`b^*`$ be the labeled box and $`q_i = \operatorname{IoU}(b_i,b^*)`$. The positive $i^+$ is the candidate with maximum IoU. The negative $i^-$ is the highest-scoring candidate with $`q_i < 0.5`$. When $q_{i^+}\ge 0.5$ and a negative exists, the ranking term is
 
-$$
+```math
 \mathcal{L}_{\mathrm{rank}} =
 \max\left(0,\; 0.10 + s_{i^-} - s_{i^+}\right).
-$$
+```
 
 The term is zero when either candidate is unavailable. It penalizes score gaps smaller than 0.10 on the same score scale used at inference. The overlap selects the pair during training. Inference ranks candidates by $s_i$ from the detector's usual forward pass. [Loss implementation](src/training/trainer.py#L16) · [Inference scoring](src/models/grounding_dino.py#L49)
 
 With ranking enabled, the full loss is
 
-$$
-\mathcal{L} =
-\mathcal{L}_{\mathrm{focal}} + 5\lVert b_j-b^*\rVert_1
-+ 2\bigl(1-\operatorname{GIoU}(b_j,b^*)\bigr)
+```math
+\begin{aligned}
+\mathcal{L} &= \mathcal{L}_{\mathrm{focal}} + 5\lVert b_j-b^*\rVert_1 \\
+&\quad + 2\bigl(1-\operatorname{GIoU}(b_j,b^*)\bigr)
 + \mathcal{L}_{\mathrm{rank}}.
-$$
+\end{aligned}
+```
 
 Here $j$ is the query matched by the base objective, using a cost that weights normalized center-and-size distance by 5, generalized IoU by −2, and the box score by −1. The ranking positive is selected separately by overlap. The focal term uses $\alpha=0.25$ and $\gamma=2$. [Focal Loss paper](https://arxiv.org/abs/1708.02002) · [Generalized IoU paper](https://arxiv.org/abs/1902.09630)
 
@@ -193,3 +194,7 @@ The Vue app lives in `frontend/`. The API, data pipeline, models, and evaluation
 ## Credits
 
 [Grounding DINO-Tiny](https://huggingface.co/IDEA-Research/grounding-dino-tiny) · [TahrirchiBERT-base](https://huggingface.co/tahrirchi/tahrirchi-bert-base) · [NLLB-200 distilled 600M](https://huggingface.co/facebook/nllb-200-distilled-600M) · [Sample image credits](frontend/SAMPLES.md). The NLLB model card lists a noncommercial license.
+
+## License
+
+The UzBEye source code is available under the [MIT License](LICENSE). Third-party models, datasets, and demo images are subject to their respective terms.
