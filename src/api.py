@@ -21,7 +21,8 @@ from src.models.assets import source
 from src.models.grounding_dino import Grounder, load_delta
 
 ROOT = Path(__file__).resolve().parents[1]
-CHECKPOINTS = Path(environ.get("GROUNDING_CHECKPOINTS", ROOT / "runs" / "corrected")).resolve()
+CHECKPOINT_OVERRIDE = environ.get("GROUNDING_CHECKPOINTS")
+CHECKPOINTS = Path(CHECKPOINT_OVERRIDE or ROOT / "runs" / "corrected").resolve()
 MAX_BYTES = 12 * 1024**2
 MAX_PIXELS = 24_000_000
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,9 +32,20 @@ app = FastAPI(title="UzBEye", docs_url=None, redoc_url=None, openapi_url=None)
 lock = Lock()
 
 
+def has_checkpoint(folder):
+    return all((folder / file).is_file() for file in ("training.json", "best.pt"))
+
+
+def checkpoint_folder(approach):
+    if approach == "C" and not CHECKPOINT_OVERRIDE:
+        latest = ROOT / "runs" / "polished-8k-ranking" / "C"
+        if has_checkpoint(latest):
+            return latest
+    return CHECKPOINTS / approach
+
+
 def ready(approach):
-    folder = CHECKPOINTS / approach
-    return approach in ("A", "D") or all((folder / file).is_file() for file in ("training.json", "best.pt"))
+    return approach in ("A", "D") or has_checkpoint(checkpoint_folder(approach))
 
 
 @app.get("/api/models")
@@ -45,7 +57,7 @@ def models():
 @app.api_route("/api/models/{approach}/download", methods=["GET", "HEAD"])
 def download_weights(approach: ModelID):
     if approach in ("B", "C"):
-        checkpoint = CHECKPOINTS / approach / "best.pt"
+        checkpoint = checkpoint_folder(approach) / "best.pt"
         if not checkpoint.is_file():
             raise HTTPException(404, f"Model {approach} checkpoint is unavailable.")
         return FileResponse(checkpoint, filename=f"uzbeye-{approach.lower()}-adapter.pt",
@@ -67,7 +79,7 @@ def load_detector(approach):
     if approach == "D":
         settings = config(ROOT / "configs" / "baseline.yaml")
         return Grounder(settings, approach, DEVICE)
-    folder = CHECKPOINTS / approach
+    folder = checkpoint_folder(approach)
     settings = read_json(folder / "training.json")["config"]
     model = Grounder(settings, approach, DEVICE)
     load_delta(model, folder / "best.pt", approach)

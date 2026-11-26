@@ -116,9 +116,10 @@ def main():
             p.error("Adapted and baseline inference controls differ")
     args.out.mkdir(parents=True, exist_ok=False)
     table, records = [], {}
-    training_keys = {r["translation_key"] for r in manifest if r["split"] in ("train","val")}
-    timing = read_json(args.root/"translation_times.json")
-    preprocess = sum(timing[k] for k in training_keys)
+    training_keys = {r.get("translation_key") for r in manifest if r["split"] in ("train","val")}
+    timing_path = args.root / "translation_times.json"
+    timing = read_json(timing_path) if timing_path.is_file() else {}
+    preprocess = sum(timing[k] for k in training_keys) if training_keys <= timing.keys() else None
     for tag in tags:
         run = args.runs/tag if tag in ("B","C") else None
         stats, records[tag] = evaluate(tag,args.root,rows,cfg,run,args.out,torch.device(args.device),args.warmups)
@@ -130,12 +131,14 @@ def main():
     costs = []
     for adapted in table:
         if adapted["approach"] in ("B","C"):
+            setup = None if preprocess is None else adapted["train_seconds"] + preprocess
             for baseline in table[:2]:
-                setup = adapted["train_seconds"] + adapted["prep_seconds"]
+                break_even = None if setup is None else crossover(setup, baseline["mean_seconds"], adapted["mean_seconds"])
                 costs.append(dict(adapted=adapted["approach"], baseline=baseline["approach"],
-                                  break_even_queries=crossover(setup, baseline["mean_seconds"], adapted["mean_seconds"])))
+                                  break_even_queries=break_even))
     volumes = [dict(approach=r["approach"], queries=n,
-                    occupied_seconds=r["train_seconds"]+r["prep_seconds"]+n*r["mean_seconds"])
+                    occupied_seconds=None if r["prep_seconds"] is None else
+                    r["train_seconds"] + r["prep_seconds"] + n * r["mean_seconds"])
                for r in table for n in (100,1000,10000,100000)]
     write_json(args.out/"costs.json", dict(hourly_usd=args.hourly_usd, comparisons=costs, volumes=volumes))
     pd.DataFrame(table).to_csv(args.out/"comparison.csv",index=False)

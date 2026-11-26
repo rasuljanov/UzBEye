@@ -4,6 +4,8 @@ from PIL import Image
 from transformers import BertTokenizerFast, GroundingDinoImageProcessor
 
 from scripts.audit_translations import choose
+from scripts.expand_dataset import assess_candidates, best_candidate
+from scripts.polish_dataset import clean_english, select_reviewed
 from src.common import read_json, write_json
 from src.data import translate
 from src.data.dataset import flatten, subset, training_input_hash
@@ -64,6 +66,41 @@ def test_translation_audit_checks_the_object_and_its_attributes():
                                  {original: row["en"], corrected: row["en"]})
     assert assessments["original"]["flags"] == ["term:plaid"]
     assert choice == "candidate"
+
+
+def test_expansion_checks_spatial_cues_and_independent_evidence():
+    en = "The red bag behind the chair"
+    right = "Stulning orqasidagi qizil sumka."
+    wrong = "Stulning oldidagi qizil sumka."
+    row = dict(id=1, image_id=1, en=en, selection="new_image")
+    translations = dict(llama={en: right}, ovozify={en: wrong}, back_en={right: en, wrong: en})
+    record, = assess_candidates([row], translations)
+    assert record["candidates"]["ovozify"]["flags"] == ["cue:behind"]
+    assert best_candidate(record) is None
+    candidate = record["candidates"]["llama"]
+    candidate.update(score=.67, independent_score=.55)
+    assert best_candidate(record) is None
+    candidate.update(independent_score=.8)
+    assert best_candidate(record)[0] == "llama"
+
+
+def test_polish_preserves_grounding_metadata_and_rejects_a_lost_cue():
+    row = dict(id=21, image_id=11, en="Red bag on the left", uz="Chapdagi qizil sumka.",
+               split="train", bbox=[1, 2, 3, 4])
+    evidence = {21: dict(review=True, old_score=.92, old_flags=[])}
+    selected, report = select_reviewed([row], {21: "Qizil sumka."}, evidence, {})
+    assert selected[0]["uz"] == row["uz"]
+    assert report[0]["decision"] == "retained_prior_after_cross_check"
+    direct = {21: dict(en=row["en"], suggested_uz="Chap tomondagi qizil sumka.")}
+    selected, report = select_reviewed([row], {21: "?"}, evidence, direct)
+    assert selected[0]["bbox"] == row["bbox"]
+    assert selected[0]["uz"] == direct[21]["suggested_uz"]
+    assert report[0]["decision"] == "direct_image_review"
+    assert clean_english("The red bag on the left", "Red bag on the right") == "The red bag on the left"
+    assert clean_english("Pizza in the right hand picture", "?") == "Pizza in the picture on the right"
+    validation = row | {"split": "val"}
+    preserved, _ = select_reviewed([validation], {21: "?"}, evidence, direct)
+    assert preserved == [validation]
 
 
 def test_preprocessing_and_alignment(tmp_path):

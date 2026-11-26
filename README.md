@@ -29,29 +29,30 @@ All rows below use the same **255 corrected validation prompts** on a Quadro RTX
 
 | Model and training data | Top-1 accuracy | Top-5 recall | Median latency |
 |---|---:|---:|---:|
-| A · Translate-at-Inference, uncached | **49.4%** (126/255) | 82.0% | 450 ms |
+| A · Translate-at-Inference, uncached | 49.4% (126/255) | 82.0% | 450 ms |
 | B · Original translations | 38.8% (99/255) | 85.1% | 208 ms |
 | B · Corrected translations | 42.7% (109/255) | 81.6% | 207 ms |
 | C · Original translations | 42.4% (108/255) | 76.9% | 207 ms |
 | C · Corrected translations | 41.6% (106/255) | 82.7% | 204 ms |
-| C · Corrected translations + ranking loss | 48.2% (123/255) | 58.4% | 208 ms |
+| C · Corrected 4k + ranking loss | 48.2% (123/255) | 58.4% | 208 ms |
+| C · Polished 8k + ranking loss | **56.5%** (144/255) | 64.7% | 236 ms |
 | D · Zero-Shot Uzbek | 35.3% (90/255) | 65.9% | 212 ms |
 
 See the [benchmark data and evaluation protocol](docs/validation-results.json). The validation split was used for checkpoint selection. The 128 selected official test expressions still have English annotations and need Uzbek review before held-out evaluation.
 
 ### Reading the results
 
-![Scatter plot of top-1 accuracy and median latency. Model C with ranking loss reaches 48.2% at 208 ms. Model A reaches 49.4% at 450 ms.](docs/figures/accuracy-latency.png)
+![Scatter plot with a thin line connecting the four Model C runs. Polished 8k C reaches 56.5% at 236 ms.](docs/figures/accuracy-latency.png)
 
-**Accuracy and latency.** C with ranking loss returned 123 correct first boxes in 208 ms median latency. A returned 126 correct first boxes in 450 ms, including uncached translation.
+**Accuracy and latency.** Polished 8k C returned 144 correct first boxes at 236 ms median latency. Translate-at-Inference returned 126 at 450 ms, including uncached translation.
 
-![Paired plots showing top-1 and top-5 scores for B and C trained on the original and corrected translations.](docs/figures/translation-repair.png)
+![Top-1 accuracy and top-5 recall with a thin line connecting all four Model C checkpoints.](docs/figures/training-runs.png)
 
 **Translation repairs.** B gained 10 first-ranked matches and lost nine top-five matches. C lost two first-ranked matches and gained 15 top-five matches. The training prompts and the validation prompts used for checkpoint selection both changed between the two versions.
 
-![Stacked bars comparing the first correct box across models. With ranking loss, Model C goes from 106 to 123 first-ranked matches and from 211 to 149 matches anywhere in the top five.](docs/figures/box-rank-breakdown.png)
+![Stacked bars of first-match ranks. Polished 8k C has 144 rank-one matches and 165 matches somewhere in the top five.](docs/figures/box-rank-breakdown.png)
 
-**Ranking loss.** On the same 255 prompts, Model C gained 17 first-ranked matches (+6.7 percentage points) and lost 62 matches among its top five (−24.3 percentage points). Both runs used the same corrected training data and seed. The baseline stopped after three epochs and the ranking-loss run completed five. Checkpoint selection and scoring both used this validation split.
+**Ranking and data size.** The corrected 4k ranking-loss run reached 48.2% top-1 and 58.4% top-5. The polished 8k follow-up reached 56.5% top-1 and 64.7% top-5. It used more prompts, additional translation edits, and 5,000 optimizer updates compared with 2,555 for the 4k ranking run. Both checkpoints were selected using this validation split.
 
 After installing the Python and frontend dependencies, regenerate the figures with `.\.venv\Scripts\python.exe -m scripts.plot_validation_results`.
 
@@ -62,7 +63,7 @@ After installing the Python and frontend dependencies, regenerate the figures wi
 
 ## Run locally
 
-From the project folder, start the backend. It loads B and C from `runs/corrected` by default.
+From the project folder, start the backend. The Uzbek encoder option loads `runs/polished-8k-ranking/C` when available, with `runs/corrected/C` as a fallback. Model B loads from `runs/corrected/B`.
 
 ```powershell
 .\scripts\serve.ps1
@@ -92,7 +93,7 @@ Use the download icon in a model row to save its weights. A and D share the Grou
 
 ## Reproduce or extend
 
-The commands below use the local corrected manifest. A fresh clone contains source and sample images. Prepare the dataset first, then provide a corrected manifest or use the generated `training_bilingual.json` for a run on the original translations. Each run saves its best validation checkpoint and training log. The tester loads B and C once their checkpoints are available in `runs/corrected` or in the folder set by `GROUNDING_CHECKPOINTS`.
+The commands below use the local corrected manifest. A fresh clone contains source and sample images. Prepare the dataset first, then provide a corrected manifest or use the generated `training_bilingual.json` for a run on the original translations. Each run saves its best validation checkpoint and training log. Set `GROUNDING_CHECKPOINTS` to serve checkpoints from a specific run folder.
 
 ```powershell
 .\scripts\finetune.ps1 -Model B -RunName reproduction -Manifest data/refcocog/training_bilingual_corrected.json
@@ -107,6 +108,34 @@ To test Model C with the existing loss plus a box ranking loss, use the same cor
 ```
 
 The launcher starts from the same pretrained weights as the reproduction run. Each validation pass prints top-1 and top-5 at IoU ≥ 0.5. The best checkpoint is selected by top-1, and its paired top-5 is recorded in `runs/corrected-ranking/C/training.json`.
+
+### Expanded 8k training set
+
+The expanded manifest keeps the 4,085 corrected training prompts and adds 3,915 RefCOCOg expressions. All 255 validation rows are identical to the 4k benchmark. The 8,000 training prompts span 7,090 distinct images, including 3,327 new images. In 588 scenes, the additions give the model distinct targets of the same category.
+
+```powershell
+.\scripts\finetune.ps1 -Model C -RunName corrected-8k -Manifest data/refcocog/training_bilingual_8k.json
+.\scripts\finetune.ps1 -Model C -RunName corrected-8k-ranking -Manifest data/refcocog/training_bilingual_8k.json -RankingLoss
+```
+
+The expansion compares two Uzbek translations per English source. It uses two English round-trip checks, tests for identifying cues such as position, color, and count, and directly checks a subset of difficult examples against their English sources. The local `data/refcocog/expansion_8k/` directory holds the candidate translations, direct corrections, selection decisions, and dataset summary. Benchmarks based on this manifest report inference latency. Preprocessing cost and cost totals that depend on it require measured per-prompt translation timings.
+
+To rebuild from the prepared 4k workspace, run `python -m scripts.expand_dataset` with `--stage candidates`, `--stage audit`, and `--stage finalize` in that order. Finalization downloads the selected COCO images and verifies split isolation, prompt length for both tokenizers, and image dimensions and decoding.
+
+### Review Uzbek captions against the images
+
+`scripts.polish_dataset` compares each English prompt and existing Uzbek caption with the annotated image. It saves decisions as it works, so the first command can be rerun after an interruption. Finalization checks rewritten captions by back-translation, preserves the source and box metadata, and writes the separate image-reviewed manifest. It saves bilingual decisions under `data/refcocog/polish_8k/`.
+
+Install and start Ollama, then pull the local review model before running the first two commands.
+
+```powershell
+ollama pull qwen3-vl:4b-instruct
+.\.venv\Scripts\python.exe -m scripts.polish_dataset --stage review
+.\.venv\Scripts\python.exe -m scripts.polish_dataset --stage finalize
+.\scripts\finetune.ps1 -Model C -RunName polished-8k-ranking -Manifest data/refcocog/training_bilingual_8k_polished.json -RankingLoss
+```
+
+The image-reviewed manifest keeps the 255 previously reviewed validation rows byte-for-byte so the new run can be compared with the earlier validation scores.
 
 To prepare the original subset from scratch, run `scripts.prepare_dataset` with `--root data/refcocog --limits 4096 256 128`, then `src.data.translate` with `--root data/refcocog --stage training --batch-size 16` using `python -m`. Increase the limits to select more expressions. The corrected manifest and its audit are stored separately from this generated baseline.
 
